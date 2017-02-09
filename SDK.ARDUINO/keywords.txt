@@ -1,0 +1,81 @@
+#######################################
+#	Copyright 2016 DeviceDrive AS
+#	
+#	Licensed under the Apache License, Version 2.0 (the "License");
+#	you may not use this file except in compliance with the License.
+#	You may obtain a copy of the License at
+#	
+#	http ://www.apache.org/licenses/LICENSE-2.0
+#	
+#	Unless required by applicable law or agreed to in writing, software
+#	distributed under the License is distributed on an "AS IS" BASIS,
+#	WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#	See the License for the specific language governing permissions and
+#	limitations under the License.
+#
+#######################################
+
+#######################################
+# Syntax Coloring Map for WRFArduinoLib
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+WRFArduino					KEYWORD1
+WRFConfig					KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+getInstance				KEYWORD2
+freeInstance			KEYWORD2
+registerChar			KEYWORD2
+registerString			KEYWORD2
+handleSendQueue			KEYWORD2
+getQueueCount			KEYWORD2
+clearQueue				KEYWORD2
+send_config				KEYWORD2
+connect					KEYWORD2
+poll					KEYWORD2
+checkPendingUpgrades	KEYWORD2
+startWrfUpgrade			KEYWORD2
+startClientUpgrade		KEYWORD2
+send					KEYWORD2
+sendCommand				KEYWORD2
+sendIntrospect			KEYWORD2
+setVisibility			KEYWORD2
+reboot					KEYWORD2
+deepSleep				KEYWORD2
+clear					KEYWORD2
+factoryReset			KEYWORD2
+requestStatus			KEYWORD2
+onError					KEYWORD2
+onConnected				KEYWORD2
+onMessageSent			KEYWORD2
+onPowerUp				KEYWORD2
+onMessageReceived		KEYWORD2
+onPendingUpgrades		KEYWORD2
+onNotConnected			KEYWORD2
+onStatusReceived		KEYWORD2
+
+handle_response			KEYWORD2
+setup					KEYWORD2
+init					KEYWORD2
+handle					KEYWORD2
+startPoll				KEYWORD2
+stopPoll				KEYWORD2
+registerString			KEYWORD2
+startClientUpgrade		KEYWORD2
+
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+WRF_OFF				LITERAL1
+WRF_ON				LITERAL1
+WRF_MODE_NONE			LITERAL1
+WRF_MODE_ALL			LITERAL1
+WRF_MODE_LOCAL			LITERAL1
+WRF_MODE_REMOTE			LITERAL1
