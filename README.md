@@ -9,7 +9,7 @@ library folder to your local Arduino libraries folder on your computer. On Windo
 located under "My Documents"\Arduino\libraries by default. 
 
 If you are using Unix / Mac OSX you can use the "CreateLibrary.sh".
-The file is written in a windows environment, so if it failes, check for <CR> <LF> charaters in the file. Unix systems only use <LF>
+The file is written in a windows environment, so if it failes, check for CR LF charaters in the file. Unix systems only use LF
 
 
 The SDK.NRF folder contains an example on how to use the generic library on a Nordic Semiconductor micro controller.
