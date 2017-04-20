@@ -30,7 +30,7 @@
 class WRFArduino : public WRF {
 private:
 
-	static uint32_t write_serial(char *str);
+	static uint32_t write_serial(unsigned char *str, int length);
 	void read_serial();
 
 	bool is_polling;
@@ -39,6 +39,7 @@ private:
 	int poll_intervall;
 
 	void handle_poll(long now_ms);
+	static int handle_sendfile_cb(unsigned char* dest, int length);
 
 protected:
 	WRFArduino();
@@ -57,6 +58,9 @@ public:
 
 	void registerString(String str);
 	void send(String raw_string);
+
+	void sendFile(String file_name, int file_size, unsigned char* file);
+
 	void sendIntrospect(String introspect);
 	void startClientUpgrade(int delay);
 

@@ -16,15 +16,17 @@
 
 #include "wrfarduinolib.h"
 
+unsigned char* _data_to_send;
+
 #pragma region Handle Uart
 
-uint32_t WRFArduino::write_serial(char* str) {
-	Serial1.print(str);
+uint32_t WRFArduino::write_serial(unsigned char* str, int length) {
+	Serial1.write(str, length);
 	return 0;
 }
 
 void WRFArduino::read_serial() {
-	while (Serial1.available() > 0) 
+	while (Serial1.available() > 0)
 		registerChar(Serial1.read());
 }
 
@@ -40,6 +42,17 @@ void WRFArduino::handle_poll(long now_ms)
 	else if (is_polling && awaiting_poll && now_ms > (last_poll + (poll_intervall * 3))) {
 		awaiting_poll = false;
 	}
+}
+
+int WRFArduino::handle_sendfile_cb(unsigned char* dest, int length)
+{
+	unsigned char* itr = _data_to_send;
+	for (int i = 0; i < length; i++) {
+		dest[i] = *itr;
+		itr++;
+	}
+	_data_to_send = itr;
+	return length;
 }
 
 WRFArduino::WRFArduino() :
@@ -127,6 +140,14 @@ void WRFArduino::send(String raw_string)
 	char *p = const_cast<char*>(raw_string.c_str());
 	instance->send(p);
 }
+
+void WRFArduino::sendFile(String file_name, int file_size, unsigned char* file) 
+{
+	char *name = const_cast<char*>(file_name.c_str());
+	_data_to_send = file;
+	instance->sendFile(name, file_size, handle_sendfile_cb);
+}
+
 
 void WRFArduino::sendIntrospect(String introspect)
 {

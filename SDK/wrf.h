@@ -37,6 +37,7 @@
 #pragma region Sizes
 #define WRF_DEFAULT_CONFIG_SIZE 11
 #define DEFAULT_OTA_PARAM_SIZE 5
+#define DEFAULT_SEND_FILE_PARAM_SIZE 2
 #define WRF_ERROR_MESSAGE_SIZE 256
 
 #define WRF_MAC_STR_SIZE 13
@@ -85,6 +86,9 @@
 #define WRF_OTA_CLIENT_STR "CLIENT"
 #define WRF_SIZE_STR "size"
 
+#define WRF_COMMAND_SEND_FILE_STR "send_file"
+#define WRF_COMMAND_SEND_FILE_MAX_PACKET_SIZE_STR "max_packet_size"
+
 #define WRF_OTA_FILENO_STR "file_no"
 #define WRF_OTA_DELAY_STR "delay"
 #define WRF_OTA_PIN_TOGGLE_STR "pin_toggle"
@@ -92,6 +96,9 @@
 #define WRF_OTA_PROTOCOL_STR "protocol"
 #define WRF_OTA_PROTOCOL_RAW_STR "RAW"
 #define WRF_OTA_PROTOCOL_ARDUINO_STR "ARDUINO_ZERO"
+
+#define WRF_SEND_FILE_LENGTH_STR "length"
+#define WRF_SEND_FILE_FILE_NAME_STR "file_name"
 
 #define WRF_SECONDS_STR "seconds"
 
@@ -111,6 +118,8 @@
 #define WRF_RESULT_OK_STR "OK"
 #define WRF_RESULT_EMPTY_STR "EMPTY"
 #define WRF_RESULT_SENT_STR "SENT"
+#define WRF_RESULT_FILE_SENT_STR "FILE_SENT"
+#define WRF_RESULT_FILE_CANCEL_STR "FILE_TRANSFER_CANCELED"
 
 #define WRF_CONFIG_STR "configuration"
 #define WRF_CONFIG_MAC_STR "mac"
@@ -185,6 +194,7 @@ typedef enum
 	WRF_COMMAND_STATUS,
 	WRF_COMMAND_SETUP,
 	WRF_COMMAND_UPGRADE,
+	WRF_COMMAND_SEND_FILE,
 }wrf_command;
 
 /*	@brief	WRF01 Error codes*/
@@ -256,7 +266,10 @@ typedef enum {
 	WRF_UPGRADE_PACKAGE,
 	WRF_LOCAL_ERROR,
 	WRF_REMOTE_ERROR,
-	WRF_MESSAGE
+	WRF_MESSAGE,
+	WRF_SEND_FILE,
+	WRF_FILE_SENT,
+	WRF_FILE_CANCEL
 }wrf_result_code;
 
 #pragma endregion
@@ -298,6 +311,12 @@ typedef struct
 	char last_error_msg[WRF_MASTER_URL_SIZE]; // TODO: check sizes
 	int successful_transfer_count;
 }wrf_status;
+
+typedef struct
+{
+	wrf_result_code code;
+	char* msg;
+}wrf_send_file_status;
 
 /*	@brief	wrf_device_state contains information about the connection and device
 *
@@ -409,7 +428,7 @@ typedef struct {
 *
 *	@param[in]	string	String to be written to WRF01.
 */
-typedef uint32_t(*wrf_write_string)(char* string);
+typedef uint32_t(*wrf_write_string)(unsigned char* buffer, int buflen);
 
 /*	@brief		Function defenition for handling responses from WRF01
 *	
@@ -528,6 +547,13 @@ void wrf_check_upgrade();
 *	@param[in]	upgrade_params	Defines the upgrad details. 
 */
 void wrf_get_upgrade(ota_params *upgrade_params);
+
+/*	@brief		Function for starting the send file feature
+*
+*	@param[in]	file_name	Name of the saved file in the cloud
+*				size		The size of the file
+*/
+void wrf_init_send_file(char* file_name, int size);
 
 /*	@brief		Fuction for clearing wifi information from the WRF01.
 */

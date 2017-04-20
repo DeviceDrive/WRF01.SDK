@@ -59,7 +59,8 @@
 
 WRF *wrf;									/**< Pointer to our wrf instance, see @ref wrf_init */				
 wrf_config config;							/**< Our Wrf config, see @ref wrf_init */
-uint32_t uart_write_string(char* string);	/**< Forward declaring the function for writing to uart connected to the WRF01 */
+
+uint32_t uart_write_string(unsigned char* string, int length);	/**< Forward declaring the function for writing to uart connected to the WRF01 */
 
 uint32_t power = 0;							/**< Indicating whether our light is on or off. */
 APP_TIMER_DEF(poll_timer_id);				/**< Creating a timer id for out polling event  */
@@ -107,13 +108,13 @@ void init_uart()
 	APP_ERROR_CHECK(err_code);
 }
 
-uint32_t uart_write_string(char* s)
+uint32_t uart_write_string(unsigned char* str, int lenght)
 {	
 	uint32_t err_code;
-	uint8_t len = strlen((char *) s);
-	for (uint8_t i = 0; i < len; i++)
+	
+	for (int i = 0; i < lenght; i++)
 	{
-		err_code = app_uart_put(s[i]);
+		err_code = app_uart_put(str[i]);
 		APP_ERROR_CHECK(err_code);
 	}
 	return 0;
@@ -254,7 +255,7 @@ void onWrfNotConnected()
 void onWrfConnected(wrf_device_state* state)
 {
 	// When we connect we want to tell the world about what we can do!
-	wrf->sendIntrospect(INTROSPECTION_INTERFACES);
+	wrf->sendIntrospect((char*)INTROSPECTION_INTERFACES);
 	// Then we tell them how we are
 	send_status();
 	// And we start asking if we shold do anything
@@ -288,14 +289,14 @@ void init_wrf()
 	nrf_gpio_pin_write(ARDUINO_5_PIN, 1);
 	
 	// First we need to get our WRF instance
-	wrf = WRF::getInstance(uart_write_string, WRF_RECEIVE_BUFFER_SIZE, WRF_SEND_QUEUE_SIZE);
+	wrf = WRF::createInstance(uart_write_string, WRF_RECEIVE_BUFFER_SIZE, WRF_SEND_QUEUE_SIZE);
 	
 	// Then we set up our wanted configurations
 	DEFAULT_WRF_CONFIG(config);
 	config.debug_mode = WRF_MODE_ALL;
 	config.silent_connect = false;
-	config.product_key = PRODUCT_KEY;
-	config.version = LIGHT_VERSION;
+	config.product_key = (char*)PRODUCT_KEY;
+	config.version = (char*)LIGHT_VERSION;
 	
 	// At last we registrate the callbacks we want to handle.
 	wrf->onError(onWrfError);

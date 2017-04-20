@@ -82,6 +82,24 @@ To build a status message, you can use either Strings or the ArduinoJSON library
 
 Based on the Introspection Document, the parameters are shown either as strings, numbers or buttons with a boolean value.
 
+##### Sending large files
+
+> NOTE: At this time, there is no public endpoint to retreive the files uploaded. This is a planned feature!
+
+The WRF can send large files to the cloud and store them there. By using the generic libraries you can load segments of data from
+memory and send through the WRF, but for convinience in the Arduino library, we assume that you have the full file in memory.
+to send the file from Arduino, use the sendFile function.
+
+    wrf.sendFile(String file_name, int size, unsigned char* data);
+
+If your package is bigger than 500bytes, the WRF will segment it and send it as individual packages.
+
+Example:
+    
+    const char* file = "Hello World";
+    char*  file_name = "HelloWorld.txt";
+    wrf.sendFile(file_name, 11, (unsigned char*)file);
+
 ##### Receiving message
 To receive a message, the wrf.handle(); must be present in your loop function, and you must either call
 

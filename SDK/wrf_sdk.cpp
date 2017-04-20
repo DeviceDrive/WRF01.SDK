@@ -16,6 +16,7 @@
 
 #include "wrf_sdk.h"
 #include <stdio.h>
+#include "crc32.h"
 
 #pragma region MessageQueue Implementation
 
@@ -92,6 +93,7 @@ void WRF::init_instance(wrf_write_string writer, int receive_buffer_size, int qu
 	_receive_buffer.length = 0;
 	_receive_buffer.data = (char*)malloc(_receive_buffer.allocated);
 	_is_sending = false;
+	_wrf_mode = NORMAL;
 }
 
 #pragma region Init Singlton
@@ -110,13 +112,19 @@ void WRF::set_handle_response_override(pre_handle_response handler)
 	response_handler_override = handler;
 }
 
-WRF* WRF::getInstance(wrf_write_string writer, int receive_buffer_size, int queue_size)
+WRF* WRF::createInstance(wrf_write_string writer, int receive_buffer_size, int queue_size)
 {
 	if (!instance) {
 		instance = new WRF(writer, receive_buffer_size, queue_size);
 		wrf_init((wrf_write_string)add_message_to_queue);
 		wrf_on_response(handle_response);
+		return instance;
 	}
+	return NULL;
+}
+
+WRF * WRF::getInstance()
+{
 	return instance;
 }
 
@@ -133,7 +141,6 @@ void WRF::freeInstance()
 void WRF::handle_response(wrf_result_code code, void * object)
 {
 	bool has_been_handeled = false;
-
 	if (instance->response_handler_override)
 		has_been_handeled = instance->response_handler_override(code, object);
 
@@ -141,40 +148,62 @@ void WRF::handle_response(wrf_result_code code, void * object)
 		bool is_busy = false;
 		switch (code)
 		{
-			case WRF_MESSAGE:
-				if (instance->_message_received_cb)
-					instance->_message_received_cb((char*)object);
-				break;
-			case WRF_LOCAL_ERROR:
-			case WRF_REMOTE_ERROR:
-				if (((wrf_error*)object)->code == WRF_ERROR_NOT_ONLINE && instance->_not_connected_cb)
-					instance->_not_connected_cb();
-				if (instance->_error_cb)
-					instance->_error_cb((wrf_error*)object);
-				if (((wrf_error*)object)->code == WRF_ERROR_SYSTEM_BUSY)
-					is_busy = true;
-				break;
-			case WRF_CONFIG:
-				if (instance->_connect_cb)
-					instance->_connect_cb((wrf_device_state*)object);
-				break;
-			case WRF_STATUS:
-				if (instance->_status_received_cb)
-					instance->_status_received_cb((wrf_status*)object);
-				break;
-			case WRF_SENT:
-				if (instance->_message_sent_cb)
-					instance->_message_sent_cb();
-				break;
-			case WRF_UPGRADE_PENDING:
-				if (instance->_pending_upgrades_cb)
-					instance->_pending_upgrades_cb((wrf_module_list*)object);
-				break;
+		case WRF_MESSAGE:
+			if (instance->_message_received_cb)
+				instance->_message_received_cb((char*)object);
+			break;
+		case WRF_LOCAL_ERROR:
+		case WRF_REMOTE_ERROR:
+			if (((wrf_error*)object)->code == WRF_ERROR_NOT_ONLINE && instance->_not_connected_cb)
+				instance->_not_connected_cb();
+			if (instance->_error_cb)
+				instance->_error_cb((wrf_error*)object);
+			if (((wrf_error*)object)->code == WRF_ERROR_SYSTEM_BUSY)
+				is_busy = true;
+			break;
+		case WRF_CONFIG:
+			if (instance->_connect_cb)
+				instance->_connect_cb((wrf_device_state*)object);
+			break;
+		case WRF_STATUS:
+			if (instance->_status_received_cb)
+				instance->_status_received_cb((wrf_status*)object);
+			break;
+		case WRF_SENT:
+			if (instance->_message_sent_cb)
+				instance->_message_sent_cb();
+			break;
+		case WRF_UPGRADE_PENDING:
+			if (instance->_pending_upgrades_cb)
+				instance->_pending_upgrades_cb((wrf_module_list*)object);
+			break;
 
-			case WRF_EMPTY:
-			case WRF_OK:
-			case WRF_UPGRADE_PACKAGE:
-				break;
+		case WRF_EMPTY:
+		case WRF_OK:
+		case WRF_UPGRADE_PACKAGE:
+			break;
+		case WRF_FILE_SENT:
+			if (instance->_send_file_cb) {
+				wrf_send_file_status status;
+				status.code = code;
+				status.msg = (char*)WRF_RESULT_FILE_SENT_STR;
+				instance->_send_file_cb(&status);
+			}
+			break;
+		case WRF_FILE_CANCEL:
+			if (instance->_send_file_cb) {
+				wrf_send_file_status status;
+				status.code = code;
+				status.msg = (char*)WRF_RESULT_FILE_CANCEL_STR;
+				instance->_send_file_cb(&status);
+			}
+			break;
+		case WRF_SEND_FILE:
+			char* response = (char*)object;
+			instance->max_packet_size = atoi(response);
+			instance->_wrf_mode = FILE_TRANSFER;
+			instance->sendNextFilePacket();
+			break;
 		}
 		if (instance->_is_sending && !is_busy && !instance->_queue->empty())
 			instance->_queue->pop();
@@ -192,21 +221,36 @@ void WRF::add_message_to_queue(char * msg)
 
 void WRF::registerChar(char byte)
 {
-	_receive_buffer.data[_receive_buffer.length++] = byte;
+	switch (_wrf_mode) {
+	case NORMAL:
+		_receive_buffer.data[_receive_buffer.length++] = byte;
 
-	if (byte == ETX_CHAR && _receive_buffer.length >= 2) 
-	{
-		if (_receive_buffer.data[_receive_buffer.length - 2] == STX_CHAR
-			&& _power_up_cb)
-			_power_up_cb();
+		if (byte == ETX_CHAR && _receive_buffer.length >= 2)
+		{
+			if (_receive_buffer.data[_receive_buffer.length - 2] == STX_CHAR
+				&& _power_up_cb)
+				_power_up_cb();
 
-	}
-	else if (byte == (char)WRF_EOT) 
-	{
-		_receive_buffer.data[_receive_buffer.length] = 0x0;
-		wrf_handle_response(_receive_buffer.data);
-		_receive_buffer.length = 0;
-		_receive_buffer.data[_receive_buffer.length] = 0x0;
+		}
+		else if (byte == (char)WRF_EOT)
+		{
+			_receive_buffer.data[_receive_buffer.length] = 0x0;
+			wrf_handle_response(_receive_buffer.data);
+			_receive_buffer.length = 0;
+			_receive_buffer.data[_receive_buffer.length] = 0x0;
+		}
+		break;
+	case FILE_TRANSFER:
+		if (byte == ACK_CHAR) {
+			instance->sendNextFilePacket();
+		}
+		else if (byte == NAK_CHAR) {
+			instance->resendFilePacket();
+		}
+		else if (byte == CAN_CHAR) {
+			instance->abortFileTransfer();
+		}
+		break;
 	}
 }
 
@@ -219,9 +263,10 @@ void WRF::registerString(char * str)
 
 void WRF::handleSendQueue()
 {
-	if (!_queue->empty() > 0 && !instance->_is_sending)
+	if (!_queue->empty() && !instance->_is_sending && instance->_wrf_mode == NORMAL)
 	{
-		_uart_writer(_queue->peek());
+		char* msg = _queue->peek();
+		_uart_writer((unsigned char*)msg, strlen(msg));
 		instance->_is_sending = true;
 	}
 }
@@ -267,7 +312,7 @@ void WRF::startWrfUpgrade()
 	params.module = OTA_WRF01;
 	params.delay = 0;
 	params.file_no = 0;
-	params.pin_toggle = "";
+	params.pin_toggle = (char*)"";
 	params.protocol = PROTOCOL_RAW;
 	wrf_get_upgrade(&params);
 }
@@ -287,6 +332,70 @@ void WRF::sendCommand(wrf_command cmd, wrf_param * params, int num_params)
 	wrf_send_command(cmd, params, num_params);
 }
 
+void WRF::sendFile(char* file_name, int file_size, packet_handler handler)
+{
+	this->_packet_handler = handler;
+	this->file_size = file_size;
+	wrf_init_send_file(file_name, file_size);
+}
+
+void WRF::sendFilePacket(bool resend)
+{
+	packet_bytes_sent = 0;
+	if (bytes_sent_ack == file_size) {
+		// Complete file sent
+		wrf_send_message((char*)"");
+		bytes_sent_ack = 0;
+		file_size = 0;
+		max_packet_size = 0;
+		instance->_wrf_mode = NORMAL;
+	}
+	else {
+		// Remaingn data to send
+		int packet_size = max_packet_size;
+		int remainig_file_size = file_size - bytes_sent_ack;
+		if (remainig_file_size < max_packet_size)
+			packet_size = remainig_file_size;
+		
+		if (!resend)
+		{
+			data_packet = (unsigned char*)malloc(max_packet_size + 10);
+			unsigned char* packet =  (unsigned char*)malloc(packet_size);
+			packet_size = _packet_handler(packet, packet_size);
+			packet_bytes_sent = packet_size;
+
+			unsigned int crc = calcCrc((unsigned char*)packet, packet_size);
+		
+			data_packet[0] = STX_CHAR;
+			memcpy(&data_packet[1], &packet_bytes_sent, sizeof(int32_t));
+			memcpy(&data_packet[5], packet, packet_bytes_sent);
+			memcpy(&data_packet[packet_bytes_sent + 5], (char*)&crc, sizeof(int32_t));
+			data_packet[packet_bytes_sent + 9] = WRF_EOT;
+			free(packet);
+		}
+		
+		_uart_writer(data_packet, packet_bytes_sent + 10);
+	}
+}
+
+void WRF::sendNextFilePacket()
+{
+	free(data_packet);
+	bytes_sent_ack += packet_bytes_sent;
+	sendFilePacket(false);
+}
+
+void WRF::resendFilePacket()
+{
+	sendFilePacket(true);
+}
+
+void WRF::abortFileTransfer()
+{
+	free(data_packet);
+	instance->_wrf_mode = NORMAL;
+}
+
 void WRF::sendIntrospect(char * introspect)
 {
 	wrf_send_introspect(introspect);
@@ -304,8 +413,8 @@ void WRF::setVisibility(int seconds, bool trigger_connect_cb)
 	char t[10];
 	sprintf(t, "%d", !trigger_connect_cb);
 	wrf_param params[] = {
-		{ WRF_SETUP_SILENT_CONNECT_STR, t },
-		{ WRF_SETUP_VISIBILITY_STR, s }
+		{ (char*)WRF_SETUP_SILENT_CONNECT_STR, t },
+		{ (char*)WRF_SETUP_VISIBILITY_STR, s }
 	};
 	sendCommand(WRF_COMMAND_SETUP, params, 2);
 }
@@ -378,6 +487,11 @@ void WRF::onNotConnected(WrfCallback * not_connected_cb)
 void WRF::onStatusReceived(WrfStatusReceivedCallback * status_received_cb)
 {
 	_status_received_cb = status_received_cb;
+}
+
+void WRF::onSendFileEvents(WrfSendFileCallback * send_file_cb) 
+{
+	_send_file_cb = send_file_cb;
 }
 
 #pragma endregion

@@ -37,7 +37,7 @@ void wrf_send_message(char* msg)
 	buffer[length] = (char)WRF_EOT;
 	buffer[length + 1] = 0x0; //Zero terminate
 
-	_write_string(buffer);
+	_write_string(buffer, strlen(buffer));
 	free(buffer);
 }
 
@@ -205,6 +205,20 @@ void wrf_get_upgrade(ota_params *upgrade_params) {
 	wrf_send_command(WRF_COMMAND_GET_UPGRADE, params, size);
 }
 
+void wrf_init_send_file(char* file_name, int size) {
+	char size_str[WRF_PARAM_SIZE];
+	sprintf(size_str, "%d", size);
+
+	wrf_param params[DEFAULT_SEND_FILE_PARAM_SIZE];
+
+	params[0].name = WRF_SEND_FILE_LENGTH_STR;
+	params[0].str_value = size_str;
+	params[1].name = WRF_SEND_FILE_FILE_NAME_STR;
+	params[1].str_value = file_name;
+
+	wrf_send_command(WRF_COMMAND_SEND_FILE, params, 2);
+}
+
 void wrf_clear() 
 {
 	wrf_send_command(WRF_COMMAND_CLEAR, NULL, 0);
@@ -232,12 +246,16 @@ static void send_response(wrf_result_code code, void* object)
 
 static void handle_result(json_value* value)
 {
-	if (CHECK_STR(WRF_RESULT_OK_STR,value))
+	if (CHECK_STR(WRF_RESULT_OK_STR, value))
 		send_response(WRF_OK, NULL);
 	else if (CHECK_STR(WRF_RESULT_SENT_STR, value))
 		send_response(WRF_SENT, NULL);
 	else if (CHECK_STR(WRF_RESULT_EMPTY_STR, value))
 		send_response(WRF_EMPTY, NULL);
+	else if (CHECK_STR(WRF_RESULT_FILE_SENT_STR, value))
+		send_response(WRF_FILE_SENT, NULL);
+	else if (CHECK_STR(WRF_RESULT_FILE_CANCEL_STR, value))
+		send_response(WRF_FILE_CANCEL, NULL);
 	else {
 		wrf_error error = { LIB_ERROR_RESULT_UNKNOWN, WRF_ERROR_UNKNOWN_STR };
 		send_response(WRF_LOCAL_ERROR, &error);
@@ -361,7 +379,7 @@ static void handle_upgrade(json_value* value)
 	else if (value->type == json_object && value->u.object.length >0 && strcmp(WRF_SIZE_STR,value->u.object.values[0].name)==0)
 	{
 		ota_packet packet; 
-		packet.size = value->u.object.values[0].value->u.integer;
+		packet.size = (int)value->u.object.values[0].value->u.integer;
 		memcpy(packet.crc, value->u.object.values[1].value->u.string.ptr, value->u.object.values[1].value->u.string.length);
 		packet.crc[WRF_CRC_STRING_SIZE] = '\x0';
 
@@ -375,6 +393,12 @@ static void handle_upgrade(json_value* value)
 	}
 }
 
+static void handle_send_file(json_value* value) {
+	char size_str[WRF_PARAM_SIZE];
+	memcpy(size_str, value->u.string.ptr, value->u.string.length);
+	send_response(WRF_SEND_FILE, size_str);
+}
+
 static void process_local_response(json_value* value) 
 {
 	if CHECK_NAME(WRF_RESULT_STR, value)
@@ -385,6 +409,8 @@ static void process_local_response(json_value* value)
 		handle_status(value->u.object.values[0].value);
 	else if CHECK_NAME(WRF_COMMAND_UPGRADE_STR, value)
 		handle_upgrade(value->u.object.values[0].value);
+	else if CHECK_NAME(WRF_COMMAND_SEND_FILE_MAX_PACKET_SIZE_STR, value)
+		handle_send_file(value->u.object.values[0].value);
 	else{
 		wrf_error error = { LIB_ERROR_UNKNOWN_OBJECT, LIB_ERROR_UNKNOWN_OBJECT_STR };
 		send_response(WRF_LOCAL_ERROR, &error);
@@ -476,6 +502,8 @@ char* get_cmd_str(wrf_command cmd)
 			return WRF_COMMAND_SETUP_STR;
 		case WRF_COMMAND_UPGRADE:
 			return WRF_COMMAND_UPGRADE_STR;
+		case WRF_COMMAND_SEND_FILE:
+			return WRF_COMMAND_SEND_FILE_STR;
 		default:
 			return WRF_COMMAND_UNKNOWN_STR;
 	}	

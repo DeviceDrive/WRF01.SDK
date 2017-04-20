@@ -24,9 +24,22 @@
 *			 WRF01 serial specification which can be found at
 *			 https://devicedrive.com/downloads/
 */
+
+/**
+*	Version		Description											Who		When
+*	----------------------------------------------------------------------------------
+*	1.0			Created wrf_sdk										ASB		27.01.2017
+*	----------------------------------------------------------------------------------
+*	1.1			added createInstance(writer, int int) and			
+*				getInstance()										ASB		28.02.2017
+*	----------------------------------------------------------------------------------
+*	1.2			Added sendFile functionality						PSB		21.03.2017
+*	----------------------------------------------------------------------------------
+*/	
 #pragma once
 extern "C" {
 #include "wrf.h"
+#include "crc32.h"
 #include "stdlib.h"
 #include "string.h"
 }
@@ -62,6 +75,31 @@ typedef struct {
 }buffer;
 #pragma endregion
 
+#pragma region Send file struct
+
+typedef struct {
+	int size;
+	char* data;
+	int max_packet_size;
+	int sent_bytes;
+}send_file_file_struct;
+
+#pragma endregion
+
+#pragma region Emums
+
+enum wrf_operating_mode {
+	NORMAL,
+	FILE_TRANSFER
+};
+
+#pragma endregion
+
+#define ACK_CHAR ((char)0x06)
+#define NAK_CHAR ((char)0x15)
+#define CAN_CHAR ((char)0x18)
+
+
 #pragma region Callback definitions
 typedef void WrfCallback();
 typedef void WrfErrorCallback(wrf_error *error);
@@ -69,6 +107,7 @@ typedef void WrfMessageReceivedCallback(char* msg);
 typedef void WrfUpgradeCallback(wrf_module_list* list);
 typedef void WrfConnectCallback(wrf_device_state* state);
 typedef void WrfStatusReceivedCallback(wrf_status* status);
+typedef void WrfSendFileCallback(wrf_send_file_status* code);
 #pragma endregion
 
 /*	@brief		Function signature for handeling response
@@ -83,9 +122,21 @@ typedef void WrfStatusReceivedCallback(wrf_status* status);
 */
 typedef bool pre_handle_response(wrf_result_code code, void * object);
 
+/*	@brief		Function signature for handeling packages during file sending.
+*
+*	@details	This function must be implemented to send file. 
+*				Every time the WRF01 is ready to send another packet, this 
+*				function wil be used to retrive the next data to send
+*
+*	@param		dest		where to store data to be sendt.
+*	@param		max_length	Maximum length of data that can be written to @ref dest
+*	@retval		length		Length of bytes added to buffer
+*/
+typedef int packet_handler(unsigned char* dest, int max_length);
 class WRF {
 
 protected:
+
 	WrfCallback* _message_sent_cb = NULL;
 	WrfCallback* _not_connected_cb = NULL;
 	WrfCallback* _power_up_cb = NULL;
@@ -94,10 +145,13 @@ protected:
 	WrfConnectCallback* _connect_cb = NULL;
 	WrfStatusReceivedCallback* _status_received_cb = NULL;
 	WrfUpgradeCallback* _pending_upgrades_cb = NULL;
+	WrfSendFileCallback* _send_file_cb = NULL;
 	pre_handle_response* response_handler_override = NULL;
-
+	packet_handler* _packet_handler = NULL;
+	
 	wrf_write_string _uart_writer;
 	wrf_write_string _uart_log;
+
 	buffer _receive_buffer;
 	Queue* _queue;
 	bool _is_sending;
@@ -114,9 +168,27 @@ protected:
 	static void handle_response(wrf_result_code code, void* object);
 	static void add_message_to_queue(char* msg);
 
+private:
+	wrf_operating_mode _wrf_mode;
+
+	unsigned char *data_packet = NULL;
+
+	int packet_bytes_sent = 0;
+	int bytes_sent_ack = 0;
+	int file_size = 0;
+	int max_packet_size = 0;
+
+	void sendFilePacket(bool resend);
+	void sendNextFilePacket();
+	void resendFilePacket();
+	void abortFileTransfer();
+
 public :
-	static WRF* getInstance(wrf_write_string writer, int receive_buffer_size, int queue_size);
+	static WRF* createInstance(wrf_write_string writer, int receive_buffer_size, int queue_size);
+	static WRF* getInstance();
 	static void freeInstance();
+
+	//void set_uart_buffer_writer(wrf_write_buffer writer);
 
 	void registerChar(char byte);
 	void registerString(char* str);
@@ -136,6 +208,8 @@ public :
 	void send(char* raw_string);
 	void sendCommand(wrf_command cmd, wrf_param* params, int num_params);
 
+	void sendFile(char* file_name, int file_size, packet_handler handler); 
+
 	void sendIntrospect(char* introspect);
 	void setVisibility(int seconds);
 	void setVisibility(int seconds, bool trigger_connect_cb);
@@ -154,4 +228,5 @@ public :
 	void onPendingUpgrades(WrfUpgradeCallback *pending_upgrades_cb);
 	void onNotConnected(WrfCallback *not_connected_cb);
 	void onStatusReceived(WrfStatusReceivedCallback *status_received_cb);
+	void onSendFileEvents(WrfSendFileCallback *send_file_cb);
 };
