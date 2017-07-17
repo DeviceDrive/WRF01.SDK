@@ -39,7 +39,7 @@ private:
 	int poll_intervall;
 
 	void handle_poll(long now_ms);
-	static int handle_sendfile_cb(unsigned char* dest, int length);
+	static void handle_sendfile_cb( int length);
 
 protected:
 	WRFArduino();

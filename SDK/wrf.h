@@ -51,6 +51,7 @@
 #define WRF_MASTER_URL_SIZE 256
 #define WRF_OTA_MODULE_SIZE 2
 #define WRF_CRC_STRING_SIZE 4
+#define WRF_FILE_PACKET_OVERHEAD_SIZE 10
 #pragma endregion
 
 #pragma region Strings
@@ -84,7 +85,7 @@
 #define WRF_OTA_MODULE_STR "module"
 #define WRF_OTA_WRF01_STR "WRF01"
 #define WRF_OTA_CLIENT_STR "CLIENT"
-#define WRF_SIZE_STR "size"
+#define WRF_SIZE_STR "length"
 
 #define WRF_COMMAND_SEND_FILE_STR "send_file"
 #define WRF_COMMAND_SEND_FILE_MAX_PACKET_SIZE_STR "max_packet_size"
@@ -96,6 +97,7 @@
 #define WRF_OTA_PROTOCOL_STR "protocol"
 #define WRF_OTA_PROTOCOL_RAW_STR "RAW"
 #define WRF_OTA_PROTOCOL_ARDUINO_STR "ARDUINO_ZERO"
+#define WRF_OTA_PROTOCOL_HANDSHAKE_STR "HANDSHAKE"
 
 #define WRF_SEND_FILE_LENGTH_STR "length"
 #define WRF_SEND_FILE_FILE_NAME_STR "file_name"
@@ -249,7 +251,8 @@ typedef enum {
 /*	@brief		Protocol codes  */
 typedef enum {
 	PROTOCOL_RAW,
-	PROTOCOL_ARDUINO
+	PROTOCOL_ARDUINO,
+	PROTOCOL_HANDSHAKE
 }wrf_ota_protocol;
 
 /*	@brief		WRF respons codes
@@ -350,7 +353,7 @@ typedef struct {
 */
 typedef struct {
 	int size;
-	char crc[WRF_CRC_STRING_SIZE+1];
+	int crc;
 }ota_packet;
 
 /*	@brief	Object holding information about pending upgrades-

@@ -44,15 +44,10 @@ void WRFArduino::handle_poll(long now_ms)
 	}
 }
 
-int WRFArduino::handle_sendfile_cb(unsigned char* dest, int length)
+void WRFArduino::handle_sendfile_cb( int length)
 {
-	unsigned char* itr = _data_to_send;
-	for (int i = 0; i < length; i++) {
-		dest[i] = *itr;
-		itr++;
-	}
-	_data_to_send = itr;
-	return length;
+	WRF* wrf = WRF::getInstance();
+	wrf->sendFilePacket(_data_to_send, length);	
 }
 
 WRFArduino::WRFArduino() :

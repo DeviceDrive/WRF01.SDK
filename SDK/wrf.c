@@ -379,9 +379,8 @@ static void handle_upgrade(json_value* value)
 	else if (value->type == json_object && value->u.object.length >0 && strcmp(WRF_SIZE_STR,value->u.object.values[0].name)==0)
 	{
 		ota_packet packet; 
-		packet.size = (int)value->u.object.values[0].value->u.integer;
-		memcpy(packet.crc, value->u.object.values[1].value->u.string.ptr, value->u.object.values[1].value->u.string.length);
-		packet.crc[WRF_CRC_STRING_SIZE] = '\x0';
+		packet.size = value->u.object.values[0].value->u.integer;
+		packet.crc = value->u.object.values[1].value->u.integer;
 
 		send_response(WRF_UPGRADE_PACKAGE, &packet);
 	}
@@ -558,6 +557,8 @@ char* get_ota_protocol_str(wrf_ota_protocol protocol) {
 			return WRF_OTA_PROTOCOL_RAW_STR;
 		case PROTOCOL_ARDUINO:
 			return WRF_OTA_PROTOCOL_ARDUINO_STR;
+		case PROTOCOL_HANDSHAKE:
+			return WRF_OTA_PROTOCOL_HANDSHAKE_STR;
 		default:
 			return NULL;
 	}

@@ -108,6 +108,7 @@ typedef void WrfUpgradeCallback(wrf_module_list* list);
 typedef void WrfConnectCallback(wrf_device_state* state);
 typedef void WrfStatusReceivedCallback(wrf_status* status);
 typedef void WrfSendFileCallback(wrf_send_file_status* code);
+typedef void WRFClientPacketCallback(ota_packet* packet);
 #pragma endregion
 
 /*	@brief		Function signature for handeling response
@@ -128,11 +129,9 @@ typedef bool pre_handle_response(wrf_result_code code, void * object);
 *				Every time the WRF01 is ready to send another packet, this 
 *				function wil be used to retrive the next data to send
 *
-*	@param		dest		where to store data to be sendt.
-*	@param		max_length	Maximum length of data that can be written to @ref dest
-*	@retval		length		Length of bytes added to buffer
+*	@param		max_length	Maximum length of data that can be written to wrf
 */
-typedef int packet_handler(unsigned char* dest, int max_length);
+typedef void packet_handler(int max_length);
 class WRF {
 
 protected:
@@ -146,6 +145,7 @@ protected:
 	WrfStatusReceivedCallback* _status_received_cb = NULL;
 	WrfUpgradeCallback* _pending_upgrades_cb = NULL;
 	WrfSendFileCallback* _send_file_cb = NULL;
+	WRFClientPacketCallback* _client_packet_cb = NULL;
 	pre_handle_response* response_handler_override = NULL;
 	packet_handler* _packet_handler = NULL;
 	
@@ -209,6 +209,7 @@ public :
 	void sendCommand(wrf_command cmd, wrf_param* params, int num_params);
 
 	void sendFile(char* file_name, int file_size, packet_handler handler); 
+	void sendFilePacket(unsigned char* src, int length);
 
 	void sendIntrospect(char* introspect);
 	void setVisibility(int seconds);
@@ -229,4 +230,6 @@ public :
 	void onNotConnected(WrfCallback *not_connected_cb);
 	void onStatusReceived(WrfStatusReceivedCallback *status_received_cb);
 	void onSendFileEvents(WrfSendFileCallback *send_file_cb);
+
+	void onReceivedClientUpgrade(WRFClientPacketCallback* client_packet_cb);
 };

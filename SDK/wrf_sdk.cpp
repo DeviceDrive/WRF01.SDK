@@ -180,8 +180,10 @@ void WRF::handle_response(wrf_result_code code, void * object)
 
 		case WRF_EMPTY:
 		case WRF_OK:
-		case WRF_UPGRADE_PACKAGE:
 			break;
+		case WRF_UPGRADE_PACKAGE:
+			if (instance->_client_packet_cb)
+				instance->_client_packet_cb((ota_packet*)object);
 		case WRF_FILE_SENT:
 			if (instance->_send_file_cb) {
 				wrf_send_file_status status;
@@ -228,8 +230,10 @@ void WRF::registerChar(char byte)
 		if (byte == ETX_CHAR && _receive_buffer.length >= 2)
 		{
 			if (_receive_buffer.data[_receive_buffer.length - 2] == STX_CHAR
-				&& _power_up_cb)
+				&& _power_up_cb) {
+				_is_sending = false;
 				_power_up_cb();
+			}
 
 		}
 		else if (byte == (char)WRF_EOT)
@@ -356,26 +360,29 @@ void WRF::sendFilePacket(bool resend)
 		int remainig_file_size = file_size - bytes_sent_ack;
 		if (remainig_file_size < max_packet_size)
 			packet_size = remainig_file_size;
-		
-		if (!resend)
-		{
-			data_packet = (unsigned char*)malloc(max_packet_size + 10);
-			unsigned char* packet =  (unsigned char*)malloc(packet_size);
-			packet_size = _packet_handler(packet, packet_size);
-			packet_bytes_sent = packet_size;
 
-			unsigned int crc = calcCrc((unsigned char*)packet, packet_size);
-		
-			data_packet[0] = STX_CHAR;
-			memcpy(&data_packet[1], &packet_bytes_sent, sizeof(int32_t));
-			memcpy(&data_packet[5], packet, packet_bytes_sent);
-			memcpy(&data_packet[packet_bytes_sent + 5], (char*)&crc, sizeof(int32_t));
-			data_packet[packet_bytes_sent + 9] = WRF_EOT;
-			free(packet);
+		if (resend)
+		{
+			_uart_writer(data_packet, packet_size + WRF_FILE_PACKET_OVERHEAD_SIZE);
 		}
-		
-		_uart_writer(data_packet, packet_bytes_sent + 10);
+		else
+		{
+			_packet_handler(packet_size);
+		}
 	}
+}
+
+void WRF::sendFilePacket(unsigned char* src, int length)
+{
+	data_packet = (unsigned char*)malloc(max_packet_size + WRF_FILE_PACKET_OVERHEAD_SIZE);
+	packet_bytes_sent = length;
+	unsigned int crc = calcCrc(src, length);
+	data_packet[0] = STX_CHAR;
+	memcpy(&data_packet[1], &length, sizeof(int32_t));
+	memcpy(&data_packet[5], src, length);
+	memcpy(&data_packet[length + 5], (char*)&crc, sizeof(int32_t));
+	data_packet[length + 9] = WRF_EOT;
+	_uart_writer(data_packet, length + WRF_FILE_PACKET_OVERHEAD_SIZE);
 }
 
 void WRF::sendNextFilePacket()
@@ -492,6 +499,11 @@ void WRF::onStatusReceived(WrfStatusReceivedCallback * status_received_cb)
 void WRF::onSendFileEvents(WrfSendFileCallback * send_file_cb) 
 {
 	_send_file_cb = send_file_cb;
+}
+
+void WRF::onReceivedClientUpgrade(WRFClientPacketCallback* client_packet_cb)
+{
+	_client_packet_cb = client_packet_cb;
 }
 
 #pragma endregion
