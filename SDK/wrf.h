@@ -41,7 +41,7 @@
 #define WRF_SEND_ONLY_STR ((unsigned char*)"\x03")
 
 #pragma region Sizes
-#define WRF_DEFAULT_CONFIG_SIZE 11
+#define WRF_DEFAULT_CONFIG_SIZE 12
 #define DEFAULT_OTA_PARAM_SIZE 5
 #define DEFAULT_SEND_FILE_PARAM_SIZE 2
 #define WRF_ERROR_MESSAGE_SIZE 256
@@ -78,6 +78,7 @@
 #define	WRF_COMMAND_UNKNOWN_STR	"COMMAD UNKNWON"
 
 #define WRF_SETUP_DEBUG_MODE_STR "debug_mode"
+#define WRF_SETUP_DEBUG_FLAGS_STR "debug_flags"
 #define WRF_SETUP_ERROR_MODE_STR "error_mode"
 #define WRF_SETUP_SSID_PREFIX_STR "ssid_prefix"
 #define WRF_SETUP_VISIBILITY_STR "visibility"
@@ -305,6 +306,7 @@ typedef enum {
 typedef struct 
 {
 	wrf_mode debug_mode;
+	int debug_flags;
 	wrf_mode error_mode;
 	char* ssid_prefix;
 	int visibility;
@@ -315,6 +317,8 @@ typedef struct
 	char* product_key;
 	char * token;
 	char* version;
+	int time_zone;
+	int dst_zone;
 }wrf_config;
 
 /*	@brief	wrf_status contains infromation about the status of the WRF01
@@ -411,6 +415,7 @@ typedef struct {
 */
 #define DEFAULT_WRF_CONFIG(M_CONFIG)						\
 	M_CONFIG.debug_mode = WRF_MODE_NONE;					\
+	M_CONFIG.debug_flags = 0;								\
 	M_CONFIG.error_mode = WRF_MODE_ALL;						\
 	M_CONFIG.ssid_prefix = (char* const)DEFAULT_SSID_PREFIX;\
 	M_CONFIG.visibility = WRF_OFF;							\
@@ -420,7 +425,9 @@ typedef struct {
 	M_CONFIG.network_pwd = NULL;							\
 	M_CONFIG.token = NULL;									\
 	M_CONFIG.product_key = NULL;							\
-	M_CONFIG.version = NULL	
+	M_CONFIG.version = NULL;								\
+	M_CONFIG.time_zone = 0;									\
+	M_CONFIG.dst_zone = 0
 
 /*	@brief	Initializes a defailt ota_params struct
 */

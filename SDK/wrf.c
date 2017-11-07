@@ -97,28 +97,32 @@ void wrf_send_introspect(char* introspect)
 
 void wrf_send_config(wrf_config *config)
 {
+	char f_buffer[10];
 	wrf_param params[WRF_DEFAULT_CONFIG_SIZE];
 	params[0].name = WRF_SETUP_DEBUG_MODE_STR;
 	params[0].str_value = get_mode_str(config->debug_mode);
-	params[1].name = WRF_SETUP_ERROR_MODE_STR;
-	params[1].str_value = get_mode_str(config->error_mode);
-	params[2].name = WRF_SETUP_SSID_PREFIX_STR;
-	params[2].str_value = config->ssid_prefix;
+	params[1].name = WRF_SETUP_DEBUG_FLAGS_STR;
+	sprintf(f_buffer, "%d", config->debug_flags);
+	params[1].str_value = f_buffer;
+	params[2].name = WRF_SETUP_ERROR_MODE_STR;
+	params[2].str_value = get_mode_str(config->error_mode);
+	params[3].name = WRF_SETUP_SSID_PREFIX_STR;
+	params[3].str_value = config->ssid_prefix;
 
 	char v_buffer[10];
 	char s_buffer[10];
 	char c_buffer[10];
-	params[3].name = WRF_SETUP_SILENT_CONNECT_STR;
+	params[4].name = WRF_SETUP_SILENT_CONNECT_STR;
 	sprintf(c_buffer, "%d", config->silent_connect);
-	params[3].str_value = c_buffer;
-	params[4].name = WRF_SETUP_VISIBILITY_STR;
+	params[4].str_value = c_buffer;
+	params[5].name = WRF_SETUP_VISIBILITY_STR;
 	sprintf(v_buffer, "%d", config->visibility);
-	params[4].str_value = v_buffer;
-	params[5].name = WRF_SETUP_SSL_ENABLE_STR;
+	params[5].str_value = v_buffer;
+	params[6].name = WRF_SETUP_SSL_ENABLE_STR;
 	sprintf(s_buffer, "%d", config->ssl_enabeled);
-	params[5].str_value = s_buffer;
+	params[6].str_value = s_buffer;
 
-	int size = 6;
+	int size = 7;
 
 	if (config->network_ssid)
 	{
