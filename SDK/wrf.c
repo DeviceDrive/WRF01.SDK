@@ -32,12 +32,29 @@ void wrf_init(wrf_write_string write_string)
 void wrf_send_message(char* msg)
 {
 	int length = strlen(msg);
-	char* buffer = malloc(length+2);
+	unsigned char* buffer = malloc(length + 2);
 	memcpy(buffer, msg, length);
-	buffer[length] = (char)WRF_EOT;
+	buffer[length + 0] = (char)WRF_EOT;
 	buffer[length + 1] = 0x0; //Zero terminate
 
 	_write_string(buffer, strlen(buffer));
+	free(buffer);
+}
+
+void wrf_receive_message()
+{
+	_write_string(WRF_EOT_STR, 1);
+}
+
+void wrf_send_without_receive(char* msg)
+{
+	int length = strlen(msg);
+	unsigned char* buffer = malloc(length + 3);
+	memcpy(buffer, msg, length);
+	buffer[length + 0] = (char)ETX_CHAR;
+	buffer[length + 1] = (char)WRF_EOT;
+	buffer[length + 2] = 0x0; //Zero terminate
+	_write_string(buffer, strlen((const char*)buffer));
 	free(buffer);
 }
 
@@ -54,7 +71,8 @@ void wrf_on_response(wrf_callback callback)
 
 void wrf_send_command(wrf_command cmd, wrf_param* params, int size)
 {
-	char msg[WRF_MESSAGE_MAX_SIZE] = WRF_JSON_START;
+	char *msg = (char*)malloc(WRF_MESSAGE_MAX_SIZE);
+	strcpy(msg, WRF_JSON_START);
 	JSON_PAIR_STR(WRF_COMMAND_STR, get_cmd_str(cmd), msg);
 
 	if (params)
@@ -63,6 +81,7 @@ void wrf_send_command(wrf_command cmd, wrf_param* params, int size)
 	
 	strcat(msg, WRF_JSON_END);
 	wrf_send_message(msg);
+	free(msg);
 }
 
 void wrf_send_introspect(char* introspect) 
@@ -141,6 +160,14 @@ void wrf_set_visible(int seconds)
 	sprintf(seconds_str, "%d", seconds);
 	wrf_param param = {WRF_SETUP_VISIBILITY_STR, seconds_str};
 	wrf_send_command(WRF_COMMAND_SETUP, &param, 1);
+}
+
+void wrf_smart_linkup(int seconds)
+{
+	char seconds_str[WRF_PARAM_SIZE];
+	sprintf(seconds_str, "%d", seconds);
+	wrf_param param = { WRF_TIMEOUT_STR, seconds_str };
+	wrf_send_command(WRF_COMMAND_SMARTLINKUP, &param, 1);
 }
 
 void wrf_connect(bool silent) 
@@ -234,6 +261,11 @@ void wrf_ask_status()
 	wrf_send_command(WRF_COMMAND_STATUS, NULL, 0);
 }
 
+void wrf_get_time()
+{
+	wrf_send_command(WRF_COMMAND_GET_TIME,NULL,0);
+}
+
 #pragma endregion
 
 #pragma region Response Handelers
@@ -294,6 +326,12 @@ static void handle_local_error(json_value* value)
 
 	else if CHECK_STR(WRF_ERROR_COMMAND_FAILED_STR, value)
 		INIT_ERROR(WRF_ERROR_COMMAND_FAILED, WRF_ERROR_COMMAND_FAILED_STR)
+
+	else if CHECK_STR(WRF_ERROR_SMARTLINKUP_FAILED_STR, value)
+		INIT_ERROR(WRF_ERROR_SMARTLINKUP_FAILED, WRF_ERROR_SMARTLINKUP_FAILED_STR)
+
+	else if CHECK_STR(WRF_ERROR_NO_TIME_STR, value)
+		INIT_ERROR(WRF_ERROR_NO_TIME, WRF_ERROR_NO_TIME_STR)
 
 	else INIT_ERROR(LIB_ERROR_RESULT_UNKNOWN, WRF_ERROR_UNKNOWN_STR)
 
@@ -398,6 +436,32 @@ static void handle_send_file(json_value* value) {
 	send_response(WRF_SEND_FILE, size_str);
 }
 
+void handle_time(json_value* value)
+{
+	if (value->type == json_array) 
+	{
+		wrf_time time; 
+		time.timestamp = value->u.array.values[0]->u.integer;
+		time.week_day = value->u.array.values[1]->u.integer;
+		time.day = value->u.array.values[2]->u.integer;
+		time.month = value->u.array.values[3]->u.integer;
+		time.year = value->u.array.values[4]->u.integer;
+		time.hour = value->u.array.values[5]->u.integer;
+		time.minute = value->u.array.values[6]->u.integer;
+		time.second = value->u.array.values[7]->u.integer;
+		time.timezone = value->u.array.values[8]->u.integer;
+		time.dst = value->u.array.values[9]->u.integer;
+
+		send_response(WRF_TIME, &time);
+		return;
+	}
+
+	// TODO Make correc error
+	wrf_error error;
+	INIT_ERROR(LIB_ERROR_PARSE_TIME, LIB_ERROR_PARSE_TIME_STR)
+	send_response(WRF_LOCAL_ERROR, &error);
+}
+
 static void process_local_response(json_value* value) 
 {
 	if CHECK_NAME(WRF_RESULT_STR, value)
@@ -410,6 +474,8 @@ static void process_local_response(json_value* value)
 		handle_upgrade(value->u.object.values[0].value);
 	else if CHECK_NAME(WRF_COMMAND_SEND_FILE_MAX_PACKET_SIZE_STR, value)
 		handle_send_file(value->u.object.values[0].value);
+	else if CHECK_NAME(WRF_RESULT_TIME_STR, value)
+		handle_time(value->u.object.values[0].value);
 	else{
 		wrf_error error = { LIB_ERROR_UNKNOWN_OBJECT, LIB_ERROR_UNKNOWN_OBJECT_STR };
 		send_response(WRF_LOCAL_ERROR, &error);
@@ -501,8 +567,12 @@ char* get_cmd_str(wrf_command cmd)
 			return WRF_COMMAND_SETUP_STR;
 		case WRF_COMMAND_UPGRADE:
 			return WRF_COMMAND_UPGRADE_STR;
+		case WRF_COMMAND_SMARTLINKUP:
+			return WRF_COMMAND_SMART_LINKUP_STR;
 		case WRF_COMMAND_SEND_FILE:
 			return WRF_COMMAND_SEND_FILE_STR;
+		case WRF_COMMAND_GET_TIME:
+			return WRF_COMMAND_GET_TIME_STR;
 		default:
 			return WRF_COMMAND_UNKNOWN_STR;
 	}	
@@ -622,6 +692,8 @@ wrf_error_code get_error_code(char* code_str) {
 		return WRF_ERROR_INVALID_TOKEN;
 	else if (strcmp(code_str, WRF_ERROR_INVALID_APP_STR) == 0)
 		return WRF_ERROR_INVALID_APP;
+	else if (strcmp(code_str, WRF_ERROR_SMARTLINKUP_FAILED_STR) == 0)
+		return WRF_ERROR_SMARTLINKUP_FAILED;
 	else return LIB_ERROR_RESULT_UNKNOWN;
 }
 

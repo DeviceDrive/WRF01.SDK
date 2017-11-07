@@ -30,9 +30,15 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define WRF_EOT  ((char)0x04)
 #define STX_CHAR ((char)0x02)
 #define ETX_CHAR ((char)0x03)
+#define EOT_CHAR  ((char)0x04)
+
+#define WRF_EOT         EOT_CHAR
+#define WRF_SEND_ONLY   ETX_CHAR
+
+#define WRF_EOT_STR ((unsigned char*)"\x04")
+#define WRF_SEND_ONLY_STR ((unsigned char*)"\x03")
 
 #pragma region Sizes
 #define WRF_DEFAULT_CONFIG_SIZE 11
@@ -67,6 +73,8 @@
 #define WRF_COMMAND_STATUS_STR "status"
 #define WRF_COMMAND_SETUP_STR "setup"
 #define WRF_COMMAND_UPGRADE_STR "upgrade"
+#define WRF_COMMAND_SMART_LINKUP_STR "smart_linkup"
+#define WRF_COMMAND_GET_TIME_STR "get_time"
 #define	WRF_COMMAND_UNKNOWN_STR	"COMMAD UNKNWON"
 
 #define WRF_SETUP_DEBUG_MODE_STR "debug_mode"
@@ -103,6 +111,7 @@
 #define WRF_SEND_FILE_FILE_NAME_STR "file_name"
 
 #define WRF_SECONDS_STR "seconds"
+#define WRF_TIMEOUT_STR "timeout"
 
 #define WRF_OFF_STR "off"
 #define	WRF_ON_STR "on"
@@ -122,6 +131,7 @@
 #define WRF_RESULT_SENT_STR "SENT"
 #define WRF_RESULT_FILE_SENT_STR "FILE_SENT"
 #define WRF_RESULT_FILE_CANCEL_STR "FILE_TRANSFER_CANCELED"
+#define WRF_RESULT_TIME_STR "time"
 
 #define WRF_CONFIG_STR "configuration"
 #define WRF_CONFIG_MAC_STR "mac"
@@ -150,6 +160,8 @@
 #define WRF_ERROR_MISSING_HEADER_STR "MISSING_HEADER"
 #define WRF_ERROR_INVALID_TOKEN_STR "INVALID_TOKEN"
 #define WRF_ERROR_INVALID_APP_STR "INVALID_APP"
+#define WRF_ERROR_SMARTLINKUP_FAILED_STR "SMART_LINKUP_FAILED"
+#define WRF_ERROR_NO_TIME_STR "NO_TIME"
 
 #define WRF_IDLE_STR "IDLE"
 #define WRF_CONNECTING_STR "CONNECTING"
@@ -162,6 +174,7 @@
 #define LIB_ERROR_PARSE_STATUS_STR "ERROR_PARSE_STATUS"
 #define LIB_ERROR_PARSE_UPGRADE_STR "ERROR_PARSE_UPGRADE"
 #define LIB_ERROR_UNKNOWN_OBJECT_STR "ERROR_UNKNOWN_OBJECT"
+#define LIB_ERROR_PARSE_TIME_STR "ERROR_PARSE_TIME"
 
 #define WRF_ERROR_UNKNOWN_STR "Wrf SDK does not recognize message"
 
@@ -195,8 +208,10 @@ typedef enum
 	WRF_COMMAND_REBOOT,
 	WRF_COMMAND_STATUS,
 	WRF_COMMAND_SETUP,
+	WRF_COMMAND_SMARTLINKUP,
 	WRF_COMMAND_UPGRADE,
 	WRF_COMMAND_SEND_FILE,
+	WRF_COMMAND_GET_TIME,
 }wrf_command;
 
 /*	@brief	WRF01 Error codes*/
@@ -221,10 +236,13 @@ typedef enum
 	WRF_ERROR_MISSING_HEADER,
 	WRF_ERROR_INVALID_TOKEN,
 	WRF_ERROR_INVALID_APP,
+	WRF_ERROR_SMARTLINKUP_FAILED,
 	LIB_ERROR_RESULT_UNKNOWN,
 	LIB_ERROR_PARSE_STATUS, 
 	LIB_ERROR_PARSE_UPGRADE,
 	LIB_ERROR_UNKNOWN_OBJECT,
+	LIB_ERROR_PARSE_TIME,
+	WRF_ERROR_NO_TIME
 }wrf_error_code;
 
 /*	@brief		Connection status codes 
@@ -272,7 +290,8 @@ typedef enum {
 	WRF_MESSAGE,
 	WRF_SEND_FILE,
 	WRF_FILE_SENT,
-	WRF_FILE_CANCEL
+	WRF_FILE_CANCEL,
+	WRF_TIME,
 }wrf_result_code;
 
 #pragma endregion
@@ -370,6 +389,19 @@ typedef struct {
 	wrf_error_code code;
 	char* msg;
 } wrf_error;
+
+typedef struct {
+    uint64_t timestamp; 
+    int week_day;   // 0-6 (Mon-Sun)
+    int day;        
+    int month;      // 1-12 (Jan-Dec)
+    int year;   
+    int hour;       // 0-24
+    int minute;     // 0-60
+    int second;     // 0-60
+    int timezone;  // -11 - 13 where 0 is GMT
+    int dst;        // 1 is on, 0 is off
+} wrf_time; 
 
 #pragma endregion
 
@@ -490,6 +522,22 @@ void wrf_send_message(char* message);
 */
 void wrf_send_command(wrf_command cmd, wrf_param* params, int size);
 
+/*	@brief		Function for polling messages from the cloud/app to the WRF01.
+*
+*	@note		Before calling this method the WRF must have been initiated by @ref wrf_init.
+*/
+void wrf_receive_message();
+
+/*	@brief		Function for sending commands to WRF01 without expecting something to receive.
+*
+*	@details	This functions creates the the JSON string for sending
+*				the giving command to WRF01 and uses @ref wrf_send_string to send it.
+*	@note		Before calling this method the WRF must have been initiated by @ref wrf_init.
+*
+*	param[in]	msg		message to send
+*/
+void wrf_send_without_receive(char* msg);
+
 /*	@brief		Function for sending config.
 *
 *	@details	This function creates and sends a JSON command based on the given config. 
@@ -517,6 +565,15 @@ void wrf_send_introspect(char* introspect);
 *	param[in]	seconds		number of seconds WRF01 should show Access Point, -1 is infinite.
 */
 void wrf_set_visible(int seconds);
+
+/*	@brief		Function for enableing SmartLinkUp on the WRF01
+*
+*	@details	Enable the SmartLinkup function for WRF01. This function shortens the linkup time and
+*				allows for the WRF01 to be linked up without using the Access Point
+*
+*	param[in]	seconds		Number of seconds the WRF01 should stay in SmartLinkup mode. Should be between 15 seconds and 3 minutes
+*/
+void wrf_smart_linkup(int seconds);
 
 /*	@brief		Function for triggering WRF01 to try to connect.
 *
@@ -571,6 +628,13 @@ void wrf_factory_reset();
 *	@note		Handle the response in @ref wrf_callback.
 */
 void wrf_ask_status();
+
+
+/*	@brief		Function for requesting time from WRF01.
+*
+*	@note		Handle the response in @ref wrf_callback.
+*/
+void wrf_get_time();
 
 /*	@brief		Function for parsing WRF01 JSON strings and fire callbacks.
 *

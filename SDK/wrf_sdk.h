@@ -109,6 +109,7 @@ typedef void WrfConnectCallback(wrf_device_state* state);
 typedef void WrfStatusReceivedCallback(wrf_status* status);
 typedef void WrfSendFileCallback(wrf_send_file_status* code);
 typedef void WRFClientPacketCallback(ota_packet* packet);
+typedef void WrfTimeRecevedCallback(wrf_time* time);
 #pragma endregion
 
 /*	@brief		Function signature for handeling response
@@ -148,6 +149,7 @@ protected:
 	WRFClientPacketCallback* _client_packet_cb = NULL;
 	pre_handle_response* response_handler_override = NULL;
 	packet_handler* _packet_handler = NULL;
+	WrfTimeRecevedCallback* _time_cb = NULL;
 	
 	wrf_write_string _uart_writer;
 	wrf_write_string _uart_log;
@@ -195,6 +197,7 @@ public :
 	void handleSendQueue();
 	int getQueueCount();
 	void clearQueue();
+	bool isQueueEmpty();
 
 	void send_config(wrf_config &config);
 
@@ -206,6 +209,7 @@ public :
 	void startClientUpgrade(ota_params &params);
 
 	void send(char* raw_string);
+	void sendWithoutReceive(char* msg);
 	void sendCommand(wrf_command cmd, wrf_param* params, int num_params);
 
 	void sendFile(char* file_name, int file_size, packet_handler handler); 
@@ -214,11 +218,13 @@ public :
 	void sendIntrospect(char* introspect);
 	void setVisibility(int seconds);
 	void setVisibility(int seconds, bool trigger_connect_cb);
+	void smartLinkUp(int seconds);
 	void reboot();
 	void deepSleep(int duration);
 	void clear();
 	void factoryReset();
 	void requestStatus();
+	void requestTime();
 
 	void onError(WrfErrorCallback *error_cb);
 	void onConnected(WrfConnectCallback *connection_cb);
@@ -232,4 +238,5 @@ public :
 	void onSendFileEvents(WrfSendFileCallback *send_file_cb);
 
 	void onReceivedClientUpgrade(WRFClientPacketCallback* client_packet_cb);
+	void onTimeReceived(WrfTimeRecevedCallback* time_cb);
 };

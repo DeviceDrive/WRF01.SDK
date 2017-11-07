@@ -177,6 +177,10 @@ void WRF::handle_response(wrf_result_code code, void * object)
 			if (instance->_pending_upgrades_cb)
 				instance->_pending_upgrades_cb((wrf_module_list*)object);
 			break;
+		case WRF_TIME:
+			if (instance->_time_cb)
+				instance->_time_cb((wrf_time*)object);
+			break;
 
 		case WRF_EMPTY:
 		case WRF_OK:
@@ -209,7 +213,7 @@ void WRF::handle_response(wrf_result_code code, void * object)
 		}
 		if (instance->_is_sending && !is_busy && !instance->_queue->empty())
 			instance->_queue->pop();
-		if (is_busy && instance->_is_sending)
+		if (is_busy)
 			instance->_is_sending = true; // Keep awaiting response
 		else
 			instance->_is_sending = false;
@@ -285,6 +289,11 @@ void WRF::clearQueue()
 	_queue->clear();
 }
 
+bool WRF::isQueueEmpty()
+{
+	return _queue->empty();
+}
+
 #pragma endregion
 
 #pragma region  Wraper Methods
@@ -302,7 +311,7 @@ void WRF::connect()
 
 void WRF::poll()
 {
-	wrf_send_message((char* const)"");
+	wrf_receive_message();	
 }
 
 void WRF::checkPendingUpgrades()
@@ -329,6 +338,11 @@ void WRF::startClientUpgrade(ota_params & params)
 void WRF::send(char * raw_string)
 {
 	wrf_send_message(raw_string);
+}
+
+void WRF::sendWithoutReceive(char* msg)
+{
+	wrf_send_without_receive(msg);
 }
 
 void WRF::sendCommand(wrf_command cmd, wrf_param * params, int num_params)
@@ -426,6 +440,11 @@ void WRF::setVisibility(int seconds, bool trigger_connect_cb)
 	sendCommand(WRF_COMMAND_SETUP, params, 2);
 }
 
+void WRF::smartLinkUp(int seconds)
+{
+	wrf_smart_linkup(seconds);
+}
+
 void WRF::reboot()
 {
 	wrf_reboot();
@@ -449,6 +468,11 @@ void WRF::factoryReset()
 void WRF::requestStatus()
 {
 	wrf_ask_status();
+}
+
+void WRF::requestTime()
+{
+	wrf_get_time();
 }
 
 #pragma endregion
@@ -504,6 +528,11 @@ void WRF::onSendFileEvents(WrfSendFileCallback * send_file_cb)
 void WRF::onReceivedClientUpgrade(WRFClientPacketCallback* client_packet_cb)
 {
 	_client_packet_cb = client_packet_cb;
+}
+
+void WRF::onTimeReceived(WrfTimeRecevedCallback* time_cb) 
+{
+	_time_cb = time_cb;
 }
 
 #pragma endregion
