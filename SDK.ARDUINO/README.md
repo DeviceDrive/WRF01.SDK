@@ -101,6 +101,10 @@ Example:
     wrf.sendFile(file_name, 11, (unsigned char*)file);
 
 ##### Receiving message
+The WRF01 ships with an MQTT connection to the DeviceDrive servers, so messages to your device will be delivered as soon as they arrive on our servers. This means that your device loop must only handle the wrf.handle(), and onMessageReceived() will be called when a new message arrives.
+
+If you are using an older version than 4.0 of the WRF:
+
 To receive a message, the wrf.handle(); must be present in your loop function, and you must either call
 
 	wrf.poll();
@@ -163,6 +167,7 @@ The library has a method for setting up a default configuration structure. See t
 The WRFConfig contains the following properties, and default values:
 
 	debug_mode			= "none"
+	debug_flags			= 0
 	error_mode			= "all"
 	ssid_prefix			= "DeviceDrive"
 	visibility			= 0
@@ -173,6 +178,8 @@ The WRFConfig contains the following properties, and default values:
 	token				= NULL
 	product_key			= NULL
 	version				= NULL
+	time_zone 			= 0
+	dst_zone			= 0
 	
 ##### Debug mode
 
@@ -180,6 +187,8 @@ The debug mode defines what should be printed out on the logport of the WRF01 Sh
 	
 	WRF_MODE_NONE	No debug
 	WRF_MODE_ALL	All debug messages
+
+With WRF01 v4.0 you can now filter log messages with the debug flags available. A complete list of flags are available in the "Serial spesification documentation" delivered with your WRF01. By default, that flag is set to 0, giving no output, but can be set to 255 to enable all log outputs.
 	
 If NONE is set, no output will be printed on the logport, ALL will print everything on the debug port on the WRF01 Shield (Mini USB marked "Log").
 
@@ -239,10 +248,17 @@ LinkUp library for iOS and Android.
 
 Token is the identificator for the device in the cloud to assure that a user has access to communicate with the device. A valid token is only possible through the LinkUp tools if the product is defined as an internal product in the DeviceDrive cloud system. If the product is an Forwarding product, then you can use this field as you please as an identificator.
 
+##### TimeZone and DST Zone
+
+When using the GetTime function in the WRF01 v4.0 you can spescify the current timezone and dst zone from your application. This can also be set with the Linkup function from our Android and iOS apps.
+Timezone is a simple integer. For UTC time use 0, UTC+1 = 1, UTC+2 = 2 etc.
+DST zone is an automatic calculation for daylight savings. Currently only Europe is supported (last sunday in march -> last sunday in october = +1 hour).
+Set 0 for no DST or 1 for DST Europe.
+
 ##### <a name="productKey"></a>Product key
 
 The product key is the primary identifier for you product in the cloud system. This key can be obtained in the DeviceDrive cloud services when you register an product.
-		
+	
 ## Linkup
 
 DeviceDrive has developed it's own form of onboarding, called Linkup. From the client code, you can tell the WRF to enter "visibility mode", where the WRF broadcasts a local network, on which an app or a browser can connect and transfer SSID, password, and device token. The device token is issued by the DeviceDrive Cloud.
@@ -341,6 +357,9 @@ A message can be sent to the WRF to request a system status. The status message 
 	}wrf_status;
 	
 	typedef void WrfStatusReceivedCallback(wrf_status* status);
+
+##### onTimeReceived
+When requesting the time from the WRF01, this callback will be triggered with the current time, both as an EPOCH timestamp and as a serialized form for the current datetime.
 		
 ## Pin definitions
 	
