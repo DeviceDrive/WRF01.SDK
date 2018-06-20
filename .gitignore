@@ -1,2 +1,4 @@
 /wrfarduinolib
 /.vs
+/Bootloaders/Bootloader_D21/Release
+/Bootloaders/Bootloader_D21/Debug
