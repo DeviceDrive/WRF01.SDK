@@ -1,7 +1,8 @@
 # Arduino M0 Pro Bootloader
 ## Description
 This is the alternative bootloader for Arduino M0 Pro.
-Is able to update firmware via USB Native port and UART using Stk500 protocol.
+Is able to update firmware via USB Native port and UART using Stk500 protocol.  
+Source project comes from: https://github.com/arduino/ArduinoCore-samd/tree/master/bootloaders/mzero
 
 This bootloader implements the tap on Reset button. By pressing this button, the board will reset and stay in bootloader, waiting for communication on either USB or USART by 8 second. After this time bootloader try start user application.
 The USB port in use is the USB Native port, close to the Reset button. 
